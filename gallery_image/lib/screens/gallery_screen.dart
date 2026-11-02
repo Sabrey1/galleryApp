@@ -6,6 +6,7 @@ import 'package:photo_manager_image_provider/photo_manager_image_provider.dart';
 import '../controllers/gallery_controller.dart';
 import 'photo_viewer_screen.dart';
 import 'recently_deleted_screen.dart';
+import 'update_screen.dart';
 
 class GalleryScreen extends StatelessWidget {
   GalleryScreen({super.key});
@@ -90,6 +91,13 @@ class GalleryScreen extends StatelessWidget {
             style: TextStyle(fontWeight: FontWeight.bold),
           ),
           actions: [
+            IconButton(
+              icon: const Icon(Icons.system_update),
+              tooltip: 'App Update',
+              onPressed: () {
+                Get.to(() => UpdateScreen());
+              },
+            ),
             IconButton(
               icon: const Icon(Icons.refresh),
               onPressed: controller.loadPhotos,
