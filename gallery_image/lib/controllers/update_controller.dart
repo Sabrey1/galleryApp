@@ -10,7 +10,7 @@ import 'package:open_filex/open_filex.dart';
 class UpdateController extends GetxController {
   // Your GitHub version.json
   final String versionUrl =
-      'https://raw.githubusercontent.com/Sabrey1/galleryApp/main/version.json';
+    'https://raw.githubusercontent.com/Sabrey1/galleryApp/main/gallery_image/version.json';
 
   final dio = Dio();
 
