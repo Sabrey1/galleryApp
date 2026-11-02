@@ -1,6 +1,5 @@
 
-import 'dart:io';
-
+import 'dart:convert';
 import 'package:dio/dio.dart';
 import 'package:get/get.dart';
 import 'package:package_info_plus/package_info_plus.dart';
@@ -8,9 +7,8 @@ import 'package:path_provider/path_provider.dart';
 import 'package:open_filex/open_filex.dart';
 
 class UpdateController extends GetxController {
-  // Your GitHub version.json
   final String versionUrl =
-    'https://raw.githubusercontent.com/Sabrey1/galleryApp/main/gallery_image/version.json';
+      'https://raw.githubusercontent.com/Sabrey1/galleryApp/main/gallery_image/version.json';
 
   final dio = Dio();
 
@@ -39,64 +37,82 @@ class UpdateController extends GetxController {
 
   // Compare versions
   bool isNewerVersion(String latest, String current) {
-    List<int> a = latest.split('.').map(int.parse).toList();
-    List<int> b = current.split('.').map(int.parse).toList();
+    try {
+      final a = latest.split('.').map(int.parse).toList();
+      final b = current.split('.').map(int.parse).toList();
 
-    for (int i = 0; i < 3; i++) {
-      final x = i < a.length ? a[i] : 0;
-      final y = i < b.length ? b[i] : 0;
+      for (int i = 0; i < 3; i++) {
+        final x = i < a.length ? a[i] : 0;
+        final y = i < b.length ? b[i] : 0;
 
-      if (x > y) return true;
-      if (x < y) return false;
+        if (x > y) return true;
+        if (x < y) return false;
+      }
+
+      return false;
+    } catch (_) {
+      return false;
     }
-
-    return false;
   }
 
   // Check update from GitHub
   Future<void> checkUpdate() async {
     try {
       isChecking.value = true;
-      hasUpdate.value = false;
-
-      await getCurrentVersion();
 
       final response = await dio.get(
         versionUrl,
         options: Options(
-          responseType: ResponseType.json,
+          responseType: ResponseType.plain,
+          headers: {
+            'Accept': 'application/json',
+            'Cache-Control': 'no-cache',
+          },
         ),
       );
 
-      final data = response.data;
+      // Decode JSON
+      final String responseText = response.data.toString();
+      final data = jsonDecode(responseText);
 
-      if (data is! Map) {
-        throw Exception('Invalid version.json');
+      if (data is! Map<String, dynamic>) {
+        throw Exception('Invalid JSON format');
       }
 
-      latestVersion.value = data['version']?.toString() ?? '';
-      apkUrl = data['apk_url']?.toString() ?? '';
+      final version = data['version']?.toString();
+      final url = data['apk_url']?.toString();
+
+      if (version == null ||
+          !RegExp(r'^\d+(\.\d+){1,2}$').hasMatch(version) ||
+          url == null ||
+          !Uri.parse(url).isAbsolute ||
+          Uri.parse(url).scheme != 'https') {
+        throw Exception('Invalid version.json fields');
+      }
+
+      // Save update information
+      latestVersion.value = version;
+      apkUrl = url;
       releaseNotes.value =
           data['release_notes']?.toString() ?? '';
 
-      if (latestVersion.value.isEmpty || apkUrl.isEmpty) {
-        throw Exception('Version information is incomplete');
-      }
+      // Get current installed version
+      final info = await PackageInfo.fromPlatform();
+      currentVersion.value = info.version;
 
-      hasUpdate.value = isNewerVersion(
-        latestVersion.value,
-        currentVersion.value,
-      );
+      // Check if update is available
+      hasUpdate.value =
+          isNewerVersion(version, info.version);
 
       if (hasUpdate.value) {
         Get.snackbar(
           'Update Available',
-          'New version ${latestVersion.value} is available!',
+          'New version: $version',
         );
       } else {
         Get.snackbar(
-          'Update',
-          'Your app is already up to date!',
+          'No Update',
+          'Your app is already up to date.',
         );
       }
     } catch (e) {
@@ -111,7 +127,7 @@ class UpdateController extends GetxController {
 
   // Download and install APK
   Future<void> downloadUpdate() async {
-    if (apkUrl.isEmpty) return;
+    if (apkUrl.isEmpty || !hasUpdate.value) return;
 
     try {
       isDownloading.value = true;
@@ -134,8 +150,14 @@ class UpdateController extends GetxController {
       isDownloading.value = false;
 
       // Open Android APK installer
-      await OpenFilex.open(apkPath);
+      final result = await OpenFilex.open(apkPath);
 
+      if (result.type != ResultType.done) {
+        Get.snackbar(
+          'Install Error',
+          'Could not open APK installer: ${result.message}',
+        );
+      }
     } catch (e) {
       Get.snackbar(
         'Download Error',
