@@ -3,25 +3,32 @@ import 'dart:convert';
 import 'package:dio/dio.dart';
 import 'package:get/get.dart';
 import 'package:package_info_plus/package_info_plus.dart';
-import 'package:path_provider/path_provider.dart';
-import 'package:open_filex/open_filex.dart';
+import 'package:url_launcher/url_launcher.dart';
 
 class UpdateController extends GetxController {
+  UpdateController({Future<bool> Function(Uri url)? launchUrlFn})
+      : _launchUrl = launchUrlFn ?? launchUrl;
+
+  final Future<bool> Function(Uri url) _launchUrl;
+
   final String versionUrl =
       'https://raw.githubusercontent.com/Sabrey1/galleryApp/main/gallery_image/version.json';
+
+  /// Updates are installed by the user from this page in a browser.
+  ///
+  /// Downloading and installing an APK in-app would require the
+  /// REQUEST_INSTALL_PACKAGES permission, which makes Google Play Protect
+  /// classify the app as harmful and block it.
+  final String releasesUrl = 'https://github.com/Sabrey1/galleryApp/releases';
 
   final dio = Dio();
 
   final isChecking = false.obs;
-  final isDownloading = false.obs;
   final hasUpdate = false.obs;
-  final progress = 0.0.obs;
 
   final currentVersion = ''.obs;
   final latestVersion = ''.obs;
   final releaseNotes = ''.obs;
-
-  String apkUrl = '';
 
   @override
   void onInit() {
@@ -80,19 +87,14 @@ class UpdateController extends GetxController {
       }
 
       final version = data['version']?.toString();
-      final url = data['apk_url']?.toString();
 
       if (version == null ||
-          !RegExp(r'^\d+(\.\d+){1,2}$').hasMatch(version) ||
-          url == null ||
-          !Uri.parse(url).isAbsolute ||
-          Uri.parse(url).scheme != 'https') {
+          !RegExp(r'^\d+(\.\d+){1,2}$').hasMatch(version)) {
         throw Exception('Invalid version.json fields');
       }
 
       // Save update information
       latestVersion.value = version;
-      apkUrl = url;
       releaseNotes.value =
           data['release_notes']?.toString() ?? '';
 
@@ -125,46 +127,25 @@ class UpdateController extends GetxController {
     }
   }
 
-  // Download and install APK
-  Future<void> downloadUpdate() async {
-    if (apkUrl.isEmpty || !hasUpdate.value) return;
-
+  // Open the releases page in the browser so the user installs the update
+  // themselves. Downloading and installing an APK in-app would require the
+  // REQUEST_INSTALL_PACKAGES permission, which triggers Google Play Protect
+  // to classify the app as harmful and block it.
+  Future<void> openReleasesPage() async {
     try {
-      isDownloading.value = true;
-      progress.value = 0;
+      final opened = await _launchUrl(Uri.parse(releasesUrl));
 
-      final dir = await getTemporaryDirectory();
-      final apkPath = '${dir.path}/app-update.apk';
-
-      await dio.download(
-        apkUrl,
-        apkPath,
-        deleteOnError: true,
-        onReceiveProgress: (received, total) {
-          if (total > 0) {
-            progress.value = received / total;
-          }
-        },
-      );
-
-      isDownloading.value = false;
-
-      // Open Android APK installer
-      final result = await OpenFilex.open(apkPath);
-
-      if (result.type != ResultType.done) {
+      if (!opened) {
         Get.snackbar(
-          'Install Error',
-          'Could not open APK installer: ${result.message}',
+          'Error',
+          'Could not open the updates page.',
         );
       }
     } catch (e) {
       Get.snackbar(
-        'Download Error',
-        'Could not download or open APK: $e',
+        'Error',
+        'Could not open the updates page: $e',
       );
-    } finally {
-      isDownloading.value = false;
     }
   }
 }

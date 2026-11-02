@@ -35,10 +35,8 @@ class UpdateScreen extends StatelessWidget {
               const SizedBox(height: 20),
 
               ElevatedButton(
-                onPressed: controller.isChecking.value ||
-                        controller.isDownloading.value
-                    ? null
-                    : controller.checkUpdate,
+                onPressed:
+                    controller.isChecking.value ? null : controller.checkUpdate,
                 child: controller.isChecking.value
                     ? const CircularProgressIndicator()
                     : const Text('Check Update'),
@@ -57,21 +55,10 @@ class UpdateScreen extends StatelessWidget {
 
                 const SizedBox(height: 20),
 
-                if (controller.isDownloading.value) ...[
-                  LinearProgressIndicator(
-                    value: controller.progress.value,
-                  ),
-
-                  const SizedBox(height: 10),
-
-                  Text(
-                    '${(controller.progress.value * 100).toInt()}%',
-                  ),
-                ] else
-                  ElevatedButton(
-                    onPressed: controller.downloadUpdate,
-                    child: const Text('Update Now'),
-                  ),
+                ElevatedButton(
+                  onPressed: controller.openReleasesPage,
+                  child: const Text('Update Now'),
+                ),
               ],
             ],
           ),
