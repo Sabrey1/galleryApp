@@ -87,7 +87,7 @@ class GalleryScreen extends StatelessWidget {
         appBar: AppBar(
           backgroundColor: Colors.white,
           title: const Text(
-            'Gallery V3',
+            'Gallery',
             style: TextStyle(fontWeight: FontWeight.bold),
           ),
           actions: [
