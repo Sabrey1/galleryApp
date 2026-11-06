@@ -16,6 +16,10 @@
 	<string>6.0</string>
 	<key>CFBundleName</key>
 	<string>gallery_image</string>
+	<key>NSPhotoLibraryUsageDescription</key>
+	<string>Gallery needs access to your photos and videos to display them.</string>
+	<key>NSPhotoLibraryAddUsageDescription</key>
+	<string>Gallery saves edited photos to your photo library.</string>
 	<key>CFBundlePackageType</key>
 	<string>APPL</string>
 	<key>CFBundleShortVersionString</key>

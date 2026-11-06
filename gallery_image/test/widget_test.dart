@@ -13,7 +13,7 @@ void main() {
     await tester.pump(const Duration(milliseconds: 300));
 
     expect(find.byType(GetMaterialApp), findsOneWidget);
-    expect(find.text('Gallery V3'), findsOneWidget);
+    expect(find.text('Gallery'), findsOneWidget);
 
     expect(find.text('Photos'), findsOneWidget);
     expect(find.text('Favorites'), findsOneWidget);

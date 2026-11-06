@@ -1,10 +1,10 @@
 import 'package:flutter/material.dart';
 import 'package:get/get.dart';
 import 'package:photo_manager/photo_manager.dart';
-import 'package:photo_manager_image_provider/photo_manager_image_provider.dart';
 
 import '../controllers/gallery_controller.dart';
-import 'photo_viewer_screen.dart';
+import '../widgets/media_thumbnail.dart';
+import 'media_viewer_screen.dart';
 
 class RecentlyDeletedScreen extends StatefulWidget {
   const RecentlyDeletedScreen({super.key});
@@ -59,6 +59,21 @@ class _RecentlyDeletedScreenState extends State<RecentlyDeletedScreen> {
     });
   }
 
+  void _openItem(AssetEntity asset) {
+    final items = controller.recentlyDeleted.toList();
+    final index = items.indexWhere((item) => item.id == asset.id);
+
+    if (index == -1) return;
+
+    Get.to(
+      () => MediaViewerScreen(
+        items: items,
+        initialIndex: index,
+        isRecentlyDeleted: true,
+      ),
+    );
+  }
+
   Future<void> recoverSelected() async {
     final photos = selectedPhotos;
 
@@ -77,7 +92,7 @@ class _RecentlyDeletedScreenState extends State<RecentlyDeletedScreen> {
       AlertDialog(
         title: const Text('Delete permanently?'),
         content: Text(
-          'Permanently delete ${photos.length} selected photo(s) '
+          'Permanently delete ${photos.length} selected item(s) '
           'from your phone? This cannot be undone.',
         ),
         actions: [
@@ -109,7 +124,7 @@ class _RecentlyDeletedScreenState extends State<RecentlyDeletedScreen> {
       AlertDialog(
         title: const Text('Empty Recently Deleted?'),
         content: const Text(
-          'All photos in Recently Deleted will be permanently '
+          'All items in Recently Deleted will be permanently '
           'deleted from your phone. This cannot be undone.',
         ),
         actions: [
@@ -149,7 +164,7 @@ class _RecentlyDeletedScreenState extends State<RecentlyDeletedScreen> {
               ),
               SizedBox(height: 6),
               Text(
-                'Deleted photos will appear here.',
+                'Deleted photos and videos will appear here.',
                 style: TextStyle(color: Colors.grey),
               ),
             ],
@@ -166,7 +181,7 @@ class _RecentlyDeletedScreenState extends State<RecentlyDeletedScreen> {
                 Text(
                   isSelecting
                       ? '${selectedIds.length} selected'
-                      : '${photos.length} photos',
+                      : '${photos.length} items',
                   style: const TextStyle(fontWeight: FontWeight.bold),
                 ),
                 const Spacer(),
@@ -206,7 +221,7 @@ class _RecentlyDeletedScreenState extends State<RecentlyDeletedScreen> {
             child: Align(
               alignment: Alignment.centerLeft,
               child: Text(
-                'Long-press a photo to select multiple photos.',
+                'Long-press an item to select multiple items.',
                 style: TextStyle(color: Colors.grey, fontSize: 12),
               ),
             ),
@@ -238,15 +253,7 @@ class _RecentlyDeletedScreenState extends State<RecentlyDeletedScreen> {
                       if (isSelecting) {
                         toggleSelection(photo);
                       } else {
-                        Navigator.of(context).push<void>(
-                          MaterialPageRoute<void>(
-                            builder: (_) => PhotoViewerScreen(
-                              photos: photos,
-                              initialIndex: index,
-                              isRecentlyDeleted: true,
-                            ),
-                          ),
-                        );
+                        _openItem(photo);
                       }
                     },
                     behavior: HitTestBehavior.opaque,
@@ -254,13 +261,7 @@ class _RecentlyDeletedScreenState extends State<RecentlyDeletedScreen> {
                     child: Stack(
                       fit: StackFit.expand,
                       children: [
-                        AssetEntityImage(
-                          photo,
-                          isOriginal: false,
-                          thumbnailSize: const ThumbnailSize(300, 300),
-                          fit: BoxFit.cover,
-                        ),
-                        if (selected)
+                        MediaThumbnail(asset: photo),                        if (selected)
                           Container(
                             color: Colors.black.withAlpha(100),
                             child: const Align(

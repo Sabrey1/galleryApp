@@ -1,10 +1,10 @@
 import 'package:flutter/material.dart';
 import 'package:get/get.dart';
 import 'package:photo_manager/photo_manager.dart';
-import 'package:photo_manager_image_provider/photo_manager_image_provider.dart';
 
 import '../controllers/gallery_controller.dart';
-import 'photo_viewer_screen.dart';
+import '../widgets/media_thumbnail.dart';
+import 'media_viewer_screen.dart';
 import 'recently_deleted_screen.dart';
 import 'update_screen.dart';
 
@@ -36,24 +36,22 @@ class GalleryScreen extends StatelessWidget {
     }
   }
 
-  void _openPhoto(AssetEntity photo) {
-    final allPhotos = controller.photos.toList();
-    final index = allPhotos.indexOf(photo);
+  void _openPhoto(AssetEntity asset) {
+    final items = controller.photos.toList();
+    final index = items.indexWhere((item) => item.id == asset.id);
 
     if (index == -1) return;
 
-    Get.to(() => PhotoViewerScreen(photos: allPhotos, initialIndex: index));
+    Get.to(() => MediaViewerScreen(items: items, initialIndex: index));
   }
 
-  void _openFavoritePhoto(AssetEntity photo) {
-    final favoritePhotos = controller.favorites.toList();
-    final index = favoritePhotos.indexOf(photo);
+  void _openFavoritePhoto(AssetEntity asset) {
+    final items = controller.favorites.toList();
+    final index = items.indexWhere((item) => item.id == asset.id);
 
     if (index == -1) return;
 
-    Get.to(
-      () => PhotoViewerScreen(photos: favoritePhotos, initialIndex: index),
-    );
+    Get.to(() => MediaViewerScreen(items: items, initialIndex: index));
   }
 
   void _confirmDelete(AssetEntity photo) {
@@ -61,7 +59,7 @@ class GalleryScreen extends StatelessWidget {
       AlertDialog(
         title: const Text('Move to Recently Deleted?'),
         content: const Text(
-          'This photo will be moved to Recently Deleted. '
+          'This item will be moved to Recently Deleted. '
           'You can recover it later.',
         ),
         actions: [
@@ -208,13 +206,13 @@ class _PhotosTabState extends State<_PhotosTab> {
               await PhotoManager.openSetting();
               await controller.loadPhotos();
             },
-            child: const Text('Allow Photo Access'),
+            child: const Text('Allow Photo & Video Access'),
           ),
         );
       }
 
       if (controller.photos.isEmpty) {
-        return const Center(child: Text('No photos found'));
+        return const Center(child: Text('No photos or videos found'));
       }
 
       final entries = controller.groupedPhotos.entries.toList();
@@ -279,17 +277,7 @@ class _PhotosTabState extends State<_PhotosTab> {
                                 return GestureDetector(
                                   onTap: () => onOpenPhoto(photo),
                                   onLongPress: () => onDeletePhoto(photo),
-                                  child: SizedBox.expand(
-                                    child: AssetEntityImage(
-                                      photo,
-                                      isOriginal: false,
-                                      thumbnailSize: const ThumbnailSize(
-                                        300,
-                                        300,
-                                      ),
-                                      fit: BoxFit.cover,
-                                    ),
-                                  ),
+                                  child: MediaThumbnail(asset: photo),
                                 );
                               },
                             ),
@@ -366,12 +354,7 @@ class _FavoritesTabState extends State<_FavoritesTab> {
 
             return GestureDetector(
               onTap: () => widget.onOpenPhoto(photo),
-              child: AssetEntityImage(
-                photo,
-                isOriginal: false,
-                thumbnailSize: const ThumbnailSize(300, 300),
-                fit: BoxFit.cover,
-              ),
+              child: MediaThumbnail(asset: photo),
             );
           },
         ),

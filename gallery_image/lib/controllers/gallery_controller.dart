@@ -3,6 +3,8 @@ import 'package:get_storage/get_storage.dart';
 import 'package:photo_manager/photo_manager.dart';
 import 'package:intl/intl.dart';
 
+import '../utils/media_utils.dart';
+
 class GalleryController extends GetxController {
   final photos = <AssetEntity>[].obs;
   final recentlyDeleted = <AssetEntity>[].obs;
@@ -34,7 +36,7 @@ class GalleryController extends GetxController {
     await storage.write(favoritesKey, favoriteIds.toList());
   }
 
-  // Load photos from the phone.
+  // Load photos and videos from the phone.
   Future<void> loadPhotos() async {
     if (loading.value) return;
 
@@ -65,7 +67,7 @@ class GalleryController extends GetxController {
       }
 
       final albums = await PhotoManager.getAssetPathList(
-        type: RequestType.image,
+        type: galleryRequestType,
         onlyAll: true,
       );
 
@@ -198,11 +200,6 @@ class GalleryController extends GetxController {
     recentlyDeleted.sort(
       (a, b) => b.createDateTime.compareTo(a.createDateTime),
     );
-
-    Get.snackbar(
-      'Moved',
-      '${selectedPhotos.length} photo(s) moved to Recently Deleted',
-    );
   }
 
   // Recover one or multiple photos.
@@ -263,7 +260,7 @@ class GalleryController extends GetxController {
 
       Get.snackbar(
         'Deleted',
-        '${deletedIds.length} photo(s) permanently deleted',
+        '${deletedIds.length} item(s) permanently deleted',
       );
     } catch (e) {
       // Get.snackbar('Delete Error', e.toString());
