@@ -1,4 +1,6 @@
+import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:get/get.dart';
 import 'package:photo_manager/photo_manager.dart';
 
@@ -8,13 +10,25 @@ import 'media_viewer_screen.dart';
 import 'recently_deleted_screen.dart';
 import 'update_screen.dart';
 
-class GalleryScreen extends StatelessWidget {
-  GalleryScreen({super.key});
+class GalleryScreen extends StatefulWidget {
+  const GalleryScreen({super.key});
+
+  @override
+  State<GalleryScreen> createState() => _GalleryScreenState();
+}
+
+class _GalleryScreenState extends State<GalleryScreen> {
 
   final GalleryController controller = Get.put(GalleryController());
 
   final RxInt gridCount = 4.obs;
   final RxDouble _startScale = 1.0.obs;
+
+  @override
+  void initState() {
+    super.initState();
+    WidgetsBinding.instance.addPostFrameCallback((_) => _manageMediaAccess());
+  }
 
   void _onScaleStart(ScaleStartDetails details) {
     _startScale.value = 1.0;
@@ -76,6 +90,42 @@ class GalleryScreen extends StatelessWidget {
     );
   }
 
+  Future<void> _manageMediaAccess() async {
+    if (kIsWeb || defaultTargetPlatform != TargetPlatform.android) return;
+    await controller.initialLoad;
+    if (!mounted) return;
+    const channel = MethodChannel('gallery_image/updater');
+    final sdk = await channel.invokeMethod<int>('androidSdkVersion');
+    if (!mounted || sdk == null || sdk < 31) return;
+    if (await PhotoManager.canManageMedia() || !mounted) return;
+    final openSettings = await showDialog<bool>(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: const Text('Media management access'),
+        content: const Text(
+          'Allow media management access in Settings to avoid an extra '
+          'Android confirmation when permanently deleting photos and videos.',
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context, false),
+            child: const Text('Not now'),
+          ),
+          TextButton(
+            onPressed: () => Navigator.pop(context, true),
+            child: const Text('Open Settings'),
+          ),
+        ],
+      ),
+    );
+    if (openSettings == true && !await PhotoManager.requestManageMedia()) {
+      Get.snackbar(
+        'Settings unavailable',
+        'Media management access requires Android 12 or later.',
+      );
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
     return DefaultTabController(
@@ -95,10 +145,6 @@ class GalleryScreen extends StatelessWidget {
               onPressed: () {
                 Get.to(() => UpdateScreen());
               },
-            ),
-            IconButton(
-              icon: const Icon(Icons.refresh),
-              onPressed: controller.loadPhotos,
             ),
           ],
         ),

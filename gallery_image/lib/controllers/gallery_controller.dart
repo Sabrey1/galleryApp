@@ -13,6 +13,7 @@ class GalleryController extends GetxController {
 
   final loading = false.obs;
   final permissionGranted = false.obs;
+  late final Future<void> initialLoad;
 
   final storage = GetStorage();
 
@@ -24,7 +25,7 @@ class GalleryController extends GetxController {
   @override
   void onInit() {
     super.onInit();
-    loadPhotos();
+    initialLoad = loadPhotos();
   }
 
   // Save Recently Deleted IDs on the device.
