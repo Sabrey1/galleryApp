@@ -1,6 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
-import 'package:gallery_image/widgets/video_badge.dart';
+import 'package:gallery_image/widgets/video_badge_widget.dart';
 
 void main() {
   testWidgets('shows a play icon and formatted duration', (tester) async {

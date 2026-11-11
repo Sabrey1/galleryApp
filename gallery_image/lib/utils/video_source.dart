@@ -1,4 +1,3 @@
-/// How a video should be handed to the platform player.
 enum VideoSourceType { contentUri, file, network }
 
 class VideoSource {
@@ -8,12 +7,6 @@ class VideoSource {
   final Uri uri;
 }
 
-/// Resolves the URL returned by `AssetEntity.getMediaUrl()` into something
-/// `video_player` can open.
-///
-/// Android returns a `content://` URI, which must be played as a content URI
-/// rather than a file. iOS returns a `file://` URL. Other URLs are played as
-/// network sources.
 VideoSource? resolveVideoSource({
   required String? mediaUrl,
   required bool isAndroid,

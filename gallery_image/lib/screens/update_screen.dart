@@ -1,25 +1,26 @@
-
 import 'package:flutter/material.dart';
 import 'package:get/get.dart';
 
 import '../controllers/update_controller.dart';
+import '../widgets/update_available_dialog_widget.dart';
+import '../widgets/update_ready_dialog_widget.dart';
+
+export '../widgets/update_available_dialog_widget.dart';
+export '../widgets/update_ready_dialog_widget.dart';
 
 class UpdateScreen extends StatelessWidget {
   UpdateScreen({super.key, UpdateController? controller})
-      : controller = controller ?? Get.put(UpdateController());
+    : controller = controller ?? Get.put(UpdateController());
 
   final UpdateController controller;
 
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      appBar: AppBar(
-        title: const Text('App Update'),
-      ),
+      appBar: AppBar(title: const Text('App Update')),
       body: Center(
         child: Obx(() {
-          // A newer version exists: raise the Update Available dialog once
-          // per check.
+        
           if (controller.hasUpdate.value &&
               !controller.isChecking.value &&
               !controller.updateDialogShown) {
@@ -29,8 +30,6 @@ class UpdateScreen extends StatelessWidget {
             });
           }
 
-          // The APK finished downloading: tell the user to tap the
-          // finished-download notification, which opens Android's installer.
           if (controller.downloadComplete.value &&
               !controller.readyDialogShown) {
             controller.readyDialogShown = true;
@@ -44,16 +43,11 @@ class UpdateScreen extends StatelessWidget {
             child: Column(
               mainAxisAlignment: MainAxisAlignment.center,
               children: [
-                const Icon(
-                  Icons.system_update,
-                  size: 70,
-                ),
+                const Icon(Icons.system_update, size: 70),
 
                 const SizedBox(height: 20),
 
-                Text(
-                  'Current Version: ${controller.currentVersion.value}',
-                ),
+                Text('Current Version: ${controller.currentVersion.value}'),
 
                 const SizedBox(height: 20),
 
@@ -73,21 +67,15 @@ class UpdateScreen extends StatelessWidget {
                     !controller.isChecking.value) ...[
                   const SizedBox(height: 20),
 
-                  Text(
-                    'New Version: ${controller.latestVersion.value}',
-                  ),
+                  Text('New Version: ${controller.latestVersion.value}'),
 
                   if (controller.releaseNotes.value.isNotEmpty)
-                    Text(
-                      controller.releaseNotes.value,
-                    ),
+                    Text(controller.releaseNotes.value),
 
                   const SizedBox(height: 20),
 
                   if (controller.isDownloading.value) ...[
-                    LinearProgressIndicator(
-                      value: controller.progress.value,
-                    ),
+                    LinearProgressIndicator(value: controller.progress.value),
 
                     const SizedBox(height: 8),
 
@@ -99,7 +87,8 @@ class UpdateScreen extends StatelessWidget {
                   ],
 
                   ElevatedButton(
-                    onPressed: controller.isDownloading.value ||
+                    onPressed:
+                        controller.isDownloading.value ||
                             controller.downloadComplete.value
                         ? null
                         : controller.downloadUpdate,
@@ -111,65 +100,6 @@ class UpdateScreen extends StatelessWidget {
           );
         }),
       ),
-    );
-  }
-}
-
-/// Dialog shown when version.json reports a newer version than the
-/// installed one. "Update" starts the in-app APK download.
-class UpdateAvailableDialog extends StatelessWidget {
-  const UpdateAvailableDialog({super.key, required this.controller});
-
-  final UpdateController controller;
-
-  @override
-  Widget build(BuildContext context) {
-    final notes = controller.releaseNotes.value;
-    final headline =
-        'A new version (${controller.latestVersion.value}) is available.';
-
-    return AlertDialog(
-      title: const Text('Update Available'),
-      content: Text(
-        notes.isEmpty ? headline : '$headline\n\n$notes',
-      ),
-      actions: [
-        TextButton(
-          onPressed: () => Get.back(),
-          child: const Text('Later'),
-        ),
-        ElevatedButton(
-          onPressed: () {
-            Get.back();
-            controller.downloadUpdate();
-          },
-          child: const Text('Update'),
-        ),
-      ],
-    );
-  }
-}
-
-/// Dialog shown once the APK download finishes. The Android installer opens
-/// when the user taps the finished-download notification, and the user
-/// confirms the installation there.
-class UpdateReadyDialog extends StatelessWidget {
-  const UpdateReadyDialog({super.key});
-
-  @override
-  Widget build(BuildContext context) {
-    return AlertDialog(
-      title: const Text('Update downloaded'),
-      content: const Text(
-        'Tap Install in the notification panel to install the update.\n\n'
-        'The app will restart into the new version.',
-      ),
-      actions: [
-        TextButton(
-          onPressed: () => Get.back(),
-          child: const Text('OK'),
-        ),
-      ],
     );
   }
 }

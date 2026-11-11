@@ -4,7 +4,6 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:get/get.dart';
 import 'package:photo_manager/photo_manager.dart';
-import 'package:photo_manager_image_provider/photo_manager_image_provider.dart';
 import 'package:photo_view/photo_view.dart';
 import 'package:photo_view/photo_view_gallery.dart';
 import 'package:video_player/video_player.dart';
@@ -12,17 +11,11 @@ import 'package:video_player/video_player.dart';
 import '../controllers/gallery_controller.dart';
 import '../utils/media_utils.dart';
 import '../utils/video_source.dart';
-import '../widgets/media_thumbnail.dart';
+import '../widgets/media_thumbnail_widget.dart';
+import '../widgets/zoomable_photo_page_widget.dart';
+import '../widgets/video_transport_widget.dart';
 import 'photo_edit_screen.dart';
 
-/// Full-screen viewer for the whole media timeline.
-///
-/// Swiping left/right moves one item at a time through photos and videos.
-/// Photos fit within the screen and zoom in place on double tap; videos play
-/// inline with transport controls.
-/// The status bar stays hidden. Tapping the media shows the controls and the
-/// viewer controls, and tapping again hides them. Swiping down
-/// closes the viewer on both.
 class MediaViewerScreen extends StatefulWidget {
   const MediaViewerScreen({
     super.key,
@@ -53,9 +46,6 @@ class _MediaViewerScreenState extends State<MediaViewerScreen>
   bool _statusBarVisible = true;
   bool _navBarVisible = true;
 
-  bool dragging = false;
-  double dragValue = 0;
-
   double dragOffset = 0;
 
   int _videoLoadToken = 0;
@@ -72,8 +62,7 @@ class _MediaViewerScreenState extends State<MediaViewerScreen>
     super.initState();
     items = List<AssetEntity>.of(widget.items);
     currentIndex = widget.initialIndex.clamp(0, items.length - 1).toInt();
-    // Videos keep their controls visible because tapping plays/pauses them.
-    _showControls = currentIsVideo;
+    _showControls = false;
     _statusBarVisible = true;
     _navBarVisible = true;
     _applySystemBars();
@@ -98,8 +87,6 @@ class _MediaViewerScreenState extends State<MediaViewerScreen>
     super.dispose();
   }
 
-  /// Applies the current system bar visibility. The status bar stays hidden
-  /// for the whole viewer while keeping the bottom navigation bar visible.
   Future<void> _applySystemBars() async {
     if (Platform.isAndroid) {
       try {
@@ -187,7 +174,6 @@ class _MediaViewerScreenState extends State<MediaViewerScreen>
     }
   }
 
-  // Pinching back to normal size leaves zoom mode, so page swipes work again.
   void _onVideoInteractionEnd(ScaleEndDetails details) {
     if (_videoTransform.value.getMaxScaleOnAxis() <= 1.01) {
       _resetVideoZoom();
@@ -205,13 +191,11 @@ class _MediaViewerScreenState extends State<MediaViewerScreen>
 
     setState(() {
       currentIndex = index;
-      // Photos open clean (tap to show controls); videos keep them on screen.
-      _showControls = newIsVideo;
+      _showControls = false;
       dragOffset = 0;
       videoController = null;
       videoError = null;
       deleting = false;
-      dragging = false;
       _videoZoomed = false;
     });
 
@@ -270,12 +254,6 @@ class _MediaViewerScreenState extends State<MediaViewerScreen>
     }
   }
 
-  /// Opens the video with the URL photo_manager provides for players.
-  ///
-  /// `AssetEntity.file` copies videos into a cache directory on Android and
-  /// can fail for large or scoped-storage videos, so the media URL
-  /// (`content://` on Android, `file://` on iOS) is tried first. The file is
-  /// kept as a fallback.
   Future<VideoPlayerController> _openPlayer(AssetEntity video) async {
     Object? lastError;
 
@@ -516,8 +494,6 @@ class _MediaViewerScreenState extends State<MediaViewerScreen>
   }
 
   Future<void> _removeCurrentItem() async {
-    // Invalidate any in-flight load so it cannot install a stale controller
-    // after the deleted/recovered item is removed from the viewer.
     _videoLoadToken++;
 
     final oldVideo = videoController;
@@ -530,7 +506,6 @@ class _MediaViewerScreenState extends State<MediaViewerScreen>
       videoController = null;
       videoError = null;
       deleting = false;
-      dragging = false;
       _videoZoomed = false;
     });
 
@@ -548,6 +523,7 @@ class _MediaViewerScreenState extends State<MediaViewerScreen>
 
     setState(() {
       currentIndex = nextIndex;
+      _showControls = false;
     });
 
     if (pageController.hasClients) {
@@ -567,9 +543,6 @@ class _MediaViewerScreenState extends State<MediaViewerScreen>
 
   @override
   Widget build(BuildContext context) {
-    // Recovering/deleting the last item pops this route, but the setState
-    // that removed it still schedules one rebuild. Render a blank frame
-    // instead of reading currentItem from an empty list.
     if (items.isEmpty) {
       return const Scaffold(backgroundColor: Colors.black);
     }
@@ -580,7 +553,6 @@ class _MediaViewerScreenState extends State<MediaViewerScreen>
       backgroundColor: Colors.black,
       body: GestureDetector(
         behavior: HitTestBehavior.translucent,
-        // While a video is zoomed, drags pan the video instead of closing it.
         onVerticalDragUpdate: _videoZoomed ? null : _onVerticalDragUpdate,
         onVerticalDragEnd: _videoZoomed ? null : _onVerticalDragEnd,
         child: Stack(
@@ -613,7 +585,7 @@ class _MediaViewerScreenState extends State<MediaViewerScreen>
 
                       // Fit the whole photo on screen and support double-tap zoom.
                       return PhotoViewGalleryPageOptions.customChild(
-                        child: _ZoomablePhotoPage(
+                        child: ZoomablePhotoPage(
                           item: item,
                           onTap: _toggleControls,
                         ),
@@ -697,8 +669,6 @@ class _MediaViewerScreenState extends State<MediaViewerScreen>
       error: videoError,
     );
 
-    // Show the video's own thumbnail while it opens, so a slow load never
-    // flashes the failure message.
     if (state == VideoLoadState.failed) {
       return _buildVideoError();
     }
@@ -750,7 +720,7 @@ class _MediaViewerScreenState extends State<MediaViewerScreen>
 
     return GestureDetector(
       behavior: HitTestBehavior.opaque,
-      onTap: _togglePlayback,
+      onTap: _toggleControls,
       onDoubleTapDown: _onVideoDoubleTapDown,
       onDoubleTap: _toggleVideoZoom,
       // InteractiveViewer only wraps the video while zoomed, so horizontal
@@ -847,103 +817,17 @@ class _MediaViewerScreenState extends State<MediaViewerScreen>
         mainAxisSize: MainAxisSize.min,
         children: [
           if (currentIsVideo && player != null) ...[
-            _buildVideoTransport(player),
+            VideoTransport(
+              key: ObjectKey(player),
+              player: player,
+              onTogglePlayback: _togglePlayback,
+              onSeekBy: _seekBy,
+            ),
             const SizedBox(height: 10),
           ],
           _buildActionRow(),
         ],
       ),
-    );
-  }
-
-  Widget _buildVideoTransport(VideoPlayerController player) {
-    return ValueListenableBuilder<VideoPlayerValue>(
-      valueListenable: player,
-      builder: (context, value, _) {
-        final durationMs = value.duration.inMilliseconds;
-        final maxMs = durationMs > 0 ? durationMs.toDouble() : 1.0;
-        final positionMs = dragging
-            ? dragValue
-            : value.position.inMilliseconds.toDouble();
-        final shownPosition = dragging
-            ? Duration(milliseconds: dragValue.round())
-            : value.position;
-
-        return Column(
-          children: [
-            Row(
-              children: [
-                IconButton(
-                  tooltip: value.isPlaying ? 'Pause' : 'Play',
-                  onPressed: _togglePlayback,
-                  icon: Icon(
-                    value.isPlaying ? Icons.pause : Icons.play_arrow_rounded,
-                    color: Colors.white,
-                    size: 30,
-                  ),
-                ),
-                Expanded(
-                  child: Slider(
-                    value: positionMs.clamp(0.0, maxMs).toDouble(),
-                    max: maxMs,
-                    activeColor: Colors.white,
-                    inactiveColor: Colors.white24,
-                    onChanged: durationMs > 0
-                        ? (newValue) {
-                            setState(() {
-                              dragging = true;
-                              dragValue = newValue;
-                            });
-                          }
-                        : null,
-                    onChangeEnd: durationMs > 0
-                        ? (newValue) async {
-                            await player.seekTo(
-                              Duration(milliseconds: newValue.round()),
-                            );
-                            if (!mounted) return;
-                            setState(() => dragging = false);
-                          }
-                        : null,
-                  ),
-                ),
-                IconButton(
-                  tooltip: value.volume == 0 ? 'Unmute' : 'Mute',
-                  onPressed: () => player.setVolume(value.volume == 0 ? 1 : 0),
-                  icon: Icon(
-                    value.volume == 0 ? Icons.volume_off : Icons.volume_up,
-                    color: Colors.white,
-                  ),
-                ),
-              ],
-            ),
-            Row(
-              children: [
-                Text(
-                  formatMediaDuration(shownPosition.inSeconds),
-                  style: const TextStyle(color: Colors.white70, fontSize: 12),
-                ),
-                const Spacer(),
-                IconButton(
-                  tooltip: 'Back 10 seconds',
-                  onPressed: () => _seekBy(-10),
-                  icon: const Icon(Icons.replay_10, color: Colors.white),
-                ),
-                IconButton(
-                  tooltip: 'Forward 10 seconds',
-                  onPressed: () => _seekBy(10),
-                  icon: const Icon(Icons.forward_10, color: Colors.white),
-                ),
-                const Spacer(),
-                Text(
-                  formatMediaDuration(value.duration.inSeconds),
-                  style: const TextStyle(color: Colors.white70, fontSize: 12),
-                ),
-              ],
-            ),
-          ],
-        );
-      },
     );
   }
 
@@ -1032,7 +916,6 @@ class _MediaViewerScreenState extends State<MediaViewerScreen>
     );
   }
 
-  /// Favorite toggle, kept in the same row as Delete and Edit.
   Widget _buildFavoriteButton() {
     final galleryController = Get.find<GalleryController>();
 
@@ -1064,233 +947,5 @@ class _MediaViewerScreenState extends State<MediaViewerScreen>
         ),
       );
     });
-  }
-}
-
-/// A photo fitted to the viewport, with double-tap zoom at the tapped spot.
-class _ZoomablePhotoPage extends StatefulWidget {
-  const _ZoomablePhotoPage({required this.item, required this.onTap});
-
-  final AssetEntity item;
-  final VoidCallback onTap;
-
-  @override
-  State<_ZoomablePhotoPage> createState() => _ZoomablePhotoPageState();
-}
-
-class _ZoomablePhotoPageState extends State<_ZoomablePhotoPage>
-    with SingleTickerProviderStateMixin {
-  static const double _doubleTapScale = 2.5;
-  static const double _maxScale = 5.0;
-
-  final TransformationController _transformController =
-      TransformationController();
-  late final AnimationController _zoomAnimationController;
-
-  Animation<Matrix4>? _zoomAnimation;
-  Size _viewportSize = Size.zero;
-  Offset _doubleTapPosition = Offset.zero;
-  bool _zoomed = false;
-
-  @override
-  void initState() {
-    super.initState();
-    _zoomAnimationController =
-        AnimationController(
-            vsync: this,
-            duration: const Duration(milliseconds: 220),
-          )
-          ..addListener(_handleZoomAnimation)
-          ..addStatusListener(_handleZoomAnimationStatus);
-  }
-
-  @override
-  void didUpdateWidget(_ZoomablePhotoPage oldWidget) {
-    super.didUpdateWidget(oldWidget);
-    if (oldWidget.item.id != widget.item.id) {
-      _zoomed = false;
-      _zoomAnimation = null;
-      _transformController.value = Matrix4.identity();
-    }
-  }
-
-  @override
-  void dispose() {
-    _zoomAnimationController.dispose();
-    _transformController.dispose();
-    super.dispose();
-  }
-
-  double get _scrollOffset => 0.0;
-
-  void _handleZoomAnimation() {
-    final animation = _zoomAnimation;
-    if (animation != null) {
-      _transformController.value = animation.value;
-    }
-  }
-
-  void _handleZoomAnimationStatus(AnimationStatus status) {
-    if (status != AnimationStatus.completed || !mounted) return;
-    if (_transformController.value.getMaxScaleOnAxis() <= 1.01 && _zoomed) {
-      setState(() => _zoomed = false);
-      _transformController.value = Matrix4.identity();
-    }
-  }
-
-  void _animateTo(Matrix4 target) {
-    _zoomAnimation =
-        Matrix4Tween(begin: _transformController.value, end: target).animate(
-          CurvedAnimation(
-            parent: _zoomAnimationController,
-            curve: Curves.easeOutCubic,
-          ),
-        );
-    _zoomAnimationController
-      ..value = 0.0
-      ..forward();
-  }
-
-  /// The transform that matches the unzoomed view.
-  Matrix4 _baseMatrix(double offsetY) {
-    final matrix = Matrix4.identity();
-    matrix.setEntry(1, 3, -offsetY);
-    return matrix;
-  }
-
-  /// The transform that scales around [focalPoint], clamped so the image
-  /// never leaves visible empty space.
-  Matrix4 _zoomMatrix(Offset focalPoint) {
-    final Size viewport = _viewportSize;
-    final Size content = viewport;
-    final double scale = _doubleTapScale;
-
-    final double sceneX = focalPoint.dx;
-    final double sceneY = focalPoint.dy + _scrollOffset;
-    double tx = focalPoint.dx - sceneX * scale;
-    double ty = focalPoint.dy - sceneY * scale;
-
-    final double scaledWidth = content.width * scale;
-    final double scaledHeight = content.height * scale;
-
-    if (scaledWidth <= viewport.width) {
-      tx = (viewport.width - scaledWidth) / 2;
-    } else {
-      tx = tx.clamp(viewport.width - scaledWidth, 0.0).toDouble();
-    }
-    if (scaledHeight <= viewport.height) {
-      ty = (viewport.height - scaledHeight) / 2;
-    } else {
-      ty = ty.clamp(viewport.height - scaledHeight, 0.0).toDouble();
-    }
-
-    final matrix = Matrix4.identity();
-    matrix.setEntry(0, 0, scale);
-    matrix.setEntry(1, 1, scale);
-    matrix.setEntry(0, 3, tx);
-    matrix.setEntry(1, 3, ty);
-    return matrix;
-  }
-
-  void _handleDoubleTap() {
-    if (_viewportSize == Size.zero) return;
-    final double offsetY = _scrollOffset;
-
-    if (_transformController.value.getMaxScaleOnAxis() > 1.01) {
-      _animateTo(_baseMatrix(offsetY));
-      return;
-    }
-
-    final Matrix4 target = _zoomMatrix(_doubleTapPosition);
-    _transformController.value = _baseMatrix(offsetY);
-    setState(() => _zoomed = true);
-    _animateTo(target);
-  }
-
-  void _rememberDoubleTapPosition(TapDownDetails details) {
-    _doubleTapPosition = details.localPosition;
-  }
-
-  @override
-  Widget build(BuildContext context) {
-    return LayoutBuilder(
-      builder: (context, constraints) {
-        final Size viewport = Size(constraints.maxWidth, constraints.maxHeight);
-        _viewportSize = viewport;
-
-        return Stack(
-          children: [
-            GestureDetector(
-              behavior: HitTestBehavior.opaque,
-              onTap: widget.onTap,
-              onDoubleTapDown: _rememberDoubleTapPosition,
-              onDoubleTap: _handleDoubleTap,
-              child: _buildPhoto(viewport.width, constraints.maxHeight),
-            ),
-            if (_zoomed)
-              Positioned.fill(
-                child: GestureDetector(
-                  behavior: HitTestBehavior.opaque,
-                  onTap: widget.onTap,
-                  onDoubleTapDown: _rememberDoubleTapPosition,
-                  onDoubleTap: _handleDoubleTap,
-                  child: InteractiveViewer(
-                    transformationController: _transformController,
-                    constrained: false,
-                    minScale: 1.0,
-                    maxScale: _maxScale,
-                    onInteractionStart: (_) {
-                      _zoomAnimationController.stop();
-                      _zoomAnimation = null;
-                    },
-                    onInteractionEnd: (_) {
-                      if (_transformController.value.getMaxScaleOnAxis() <=
-                          1.01) {
-                        _animateTo(_baseMatrix(_scrollOffset));
-                      }
-                    },
-                    child: _buildPhoto(viewport.width, constraints.maxHeight),
-                  ),
-                ),
-              ),
-          ],
-        );
-      },
-    );
-  }
-
-  /// The same photo layout is used for the normal view and the zoom
-  /// overlay, so switching between them is seamless.
-  Widget _buildPhoto(double width, double minHeight) {
-    return ConstrainedBox(
-      constraints: BoxConstraints.tight(Size(width, minHeight)),
-      child: Center(
-        child: Image(
-          image: AssetEntityImageProvider(widget.item, isOriginal: true),
-          width: width,
-          height: minHeight,
-          fit: BoxFit.contain,
-          filterQuality: FilterQuality.medium,
-          frameBuilder: (context, child, frame, wasSynchronouslyLoaded) {
-            if (wasSynchronouslyLoaded || frame != null) {
-              return child;
-            }
-            return const SizedBox(
-              height: 120,
-              child: Center(child: CircularProgressIndicator()),
-            );
-          },
-          errorBuilder: (_, _, _) => const SizedBox(
-            height: 120,
-            child: Center(
-              child: Text(
-                'Cannot load this photo',
-                style: TextStyle(color: Colors.white70),
-              ),
-            ),
-          ),
-        ),
-      ),
-    );
   }
 }

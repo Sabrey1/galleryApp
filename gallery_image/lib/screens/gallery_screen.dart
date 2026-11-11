@@ -5,7 +5,8 @@ import 'package:get/get.dart';
 import 'package:photo_manager/photo_manager.dart';
 
 import '../controllers/gallery_controller.dart';
-import '../widgets/media_thumbnail.dart';
+import '../widgets/favorites_tab_widget.dart';
+import '../widgets/photos_tab_widget.dart';
 import 'media_viewer_screen.dart';
 import 'recently_deleted_screen.dart';
 import 'update_screen.dart';
@@ -18,7 +19,6 @@ class GalleryScreen extends StatefulWidget {
 }
 
 class _GalleryScreenState extends State<GalleryScreen> {
-
   final GalleryController controller = Get.put(GalleryController());
 
   final RxInt gridCount = 4.obs;
@@ -150,7 +150,7 @@ class _GalleryScreenState extends State<GalleryScreen> {
         ),
         body: TabBarView(
           children: [
-            _PhotosTab(
+            PhotosTab(
               controller: controller,
               gridCount: gridCount,
               onScaleStart: _onScaleStart,
@@ -158,7 +158,7 @@ class _GalleryScreenState extends State<GalleryScreen> {
               onOpenPhoto: _openPhoto,
               onDeletePhoto: _confirmDelete,
             ),
-            _FavoritesTab(
+            FavoritesTab(
               controller: controller,
               onOpenPhoto: _openFavoritePhoto,
             ),
@@ -198,213 +198,5 @@ class _GalleryScreenState extends State<GalleryScreen> {
         ),
       ),
     );
-  }
-}
-
-class _PhotosTab extends StatefulWidget {
-  const _PhotosTab({
-    required this.controller,
-    required this.gridCount,
-    required this.onScaleStart,
-    required this.onScaleUpdate,
-    required this.onOpenPhoto,
-    required this.onDeletePhoto,
-  });
-
-  final GalleryController controller;
-  final RxInt gridCount;
-  final void Function(ScaleStartDetails) onScaleStart;
-  final void Function(ScaleUpdateDetails) onScaleUpdate;
-  final void Function(AssetEntity) onOpenPhoto;
-  final void Function(AssetEntity) onDeletePhoto;
-
-  @override
-  State<_PhotosTab> createState() => _PhotosTabState();
-}
-
-class _PhotosTabState extends State<_PhotosTab> {
-  final ScrollController _scrollController = ScrollController();
-
-  @override
-  void dispose() {
-    _scrollController.dispose();
-    super.dispose();
-  }
-
-  @override
-  Widget build(BuildContext context) {
-    final controller = widget.controller;
-    final gridCount = widget.gridCount;
-    final onScaleStart = widget.onScaleStart;
-    final onScaleUpdate = widget.onScaleUpdate;
-    final onOpenPhoto = widget.onOpenPhoto;
-    final onDeletePhoto = widget.onDeletePhoto;
-
-    return Obx(() {
-      if (controller.loading.value) {
-        return const Center(child: CircularProgressIndicator());
-      }
-
-      if (!controller.permissionGranted.value) {
-        return Center(
-          child: ElevatedButton(
-            onPressed: () async {
-              await PhotoManager.openSetting();
-              await controller.loadPhotos();
-            },
-            child: const Text('Allow Photo & Video Access'),
-          ),
-        );
-      }
-
-      if (controller.photos.isEmpty) {
-        return const Center(child: Text('No photos or videos found'));
-      }
-
-      final entries = controller.groupedPhotos.entries.toList();
-
-      return GestureDetector(
-        behavior: HitTestBehavior.translucent,
-        onScaleStart: onScaleStart,
-        onScaleUpdate: onScaleUpdate,
-        child: RefreshIndicator(
-          onRefresh: controller.loadPhotos,
-          child: Scrollbar(
-            controller: _scrollController,
-            thumbVisibility: true,
-            trackVisibility: false,
-            interactive: true,
-            thickness: 12,
-            radius: const Radius.circular(8),
-            child: CustomScrollView(
-              controller: _scrollController,
-              slivers: [
-                SliverList(
-                  delegate: SliverChildBuilderDelegate((context, index) {
-                    final entry = entries[index];
-
-                    return Column(
-                      crossAxisAlignment: CrossAxisAlignment.stretch,
-                      children: [
-                        Padding(
-                          padding: EdgeInsets.fromLTRB(
-                            4,
-                            index == 0 ? 12 : 24,
-                            4,
-                            8,
-                          ),
-                          child: Text(
-                            entry.key,
-                            style: const TextStyle(
-                              fontSize: 20,
-                              fontWeight: FontWeight.bold,
-                            ),
-                          ),
-                        ),
-                        Obx(
-                          () => AnimatedSize(
-                            duration: const Duration(milliseconds: 140),
-                            curve: Curves.easeOutCubic,
-                            alignment: Alignment.topCenter,
-                            child: GridView.builder(
-                              shrinkWrap: true,
-                              padding: EdgeInsets.zero,
-                              physics: const NeverScrollableScrollPhysics(),
-                              itemCount: entry.value.length,
-                              gridDelegate:
-                                  SliverGridDelegateWithFixedCrossAxisCount(
-                                    crossAxisCount: gridCount.value,
-                                    crossAxisSpacing: 2,
-                                    mainAxisSpacing: 2,
-                                  ),
-                              itemBuilder: (context, photoIndex) {
-                                final photo = entry.value[photoIndex];
-
-                                return GestureDetector(
-                                  onTap: () => onOpenPhoto(photo),
-                                  onLongPress: () => onDeletePhoto(photo),
-                                  child: MediaThumbnail(asset: photo),
-                                );
-                              },
-                            ),
-                          ),
-                        ),
-                      ],
-                    );
-                  }, childCount: entries.length),
-                ),
-              ],
-            ),
-          ),
-        ),
-      );
-    });
-  }
-}
-
-class _FavoritesTab extends StatefulWidget {
-  const _FavoritesTab({required this.controller, required this.onOpenPhoto});
-
-  final GalleryController controller;
-  final void Function(AssetEntity) onOpenPhoto;
-
-  @override
-  State<_FavoritesTab> createState() => _FavoritesTabState();
-}
-
-class _FavoritesTabState extends State<_FavoritesTab> {
-  final ScrollController _scrollController = ScrollController();
-
-  @override
-  void dispose() {
-    _scrollController.dispose();
-    super.dispose();
-  }
-
-  @override
-  Widget build(BuildContext context) {
-    return Obx(() {
-      final photos = widget.controller.favorites.toList();
-
-      if (photos.isEmpty) {
-        return const Center(
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              Icon(Icons.star_border, size: 64, color: Colors.grey),
-              SizedBox(height: 12),
-              Text('No favorites yet'),
-            ],
-          ),
-        );
-      }
-
-      return Scrollbar(
-        controller: _scrollController,
-        thumbVisibility: true,
-        trackVisibility: false,
-        interactive: true,
-        thickness: 12,
-        radius: const Radius.circular(8),
-        child: GridView.builder(
-          controller: _scrollController,
-          padding: const EdgeInsets.all(2),
-          itemCount: photos.length,
-          gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
-            crossAxisCount: 4,
-            crossAxisSpacing: 2,
-            mainAxisSpacing: 2,
-          ),
-          itemBuilder: (context, index) {
-            final photo = photos[index];
-
-            return GestureDetector(
-              onTap: () => widget.onOpenPhoto(photo),
-              child: MediaThumbnail(asset: photo),
-            );
-          },
-        ),
-      );
-    });
   }
 }

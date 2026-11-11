@@ -3,7 +3,7 @@ import 'package:get/get.dart';
 import 'package:photo_manager/photo_manager.dart';
 
 import '../controllers/gallery_controller.dart';
-import '../widgets/media_thumbnail.dart';
+import '../widgets/media_thumbnail_widget.dart';
 import 'media_viewer_screen.dart';
 
 class RecentlyDeletedScreen extends StatefulWidget {

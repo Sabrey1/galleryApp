@@ -3,11 +3,8 @@ import 'package:photo_manager/photo_manager.dart';
 import 'package:photo_manager_image_provider/photo_manager_image_provider.dart';
 
 import '../utils/media_utils.dart';
-import 'video_badge.dart';
+import 'video_badge_widget.dart';
 
-/// A gallery grid thumbnail for a photo or a video.
-///
-/// Videos get a play icon and their duration overlaid, like Google Photos.
 class MediaThumbnail extends StatelessWidget {
   const MediaThumbnail({
     super.key,
@@ -31,8 +28,7 @@ class MediaThumbnail extends StatelessWidget {
           thumbnailSize: thumbnailSize,
           fit: fit,
         ),
-        if (isVideoAsset(asset))
-          VideoBadge(durationSeconds: asset.duration),
+        if (isVideoAsset(asset)) VideoBadge(durationSeconds: asset.duration),
       ],
     );
   }
