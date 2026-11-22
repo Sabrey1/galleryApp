@@ -9,6 +9,7 @@ class GalleryController extends GetxController {
   final photos = <AssetEntity>[].obs;
   final recentlyDeleted = <AssetEntity>[].obs;
   final favorites = <AssetEntity>[].obs;
+  final hiddenPhotos = <AssetEntity>[].obs;
   final favoriteIds = <String>{}.obs;
 
   final loading = false.obs;
@@ -19,8 +20,10 @@ class GalleryController extends GetxController {
 
   static const String trashKey = 'recently_deleted_photo_ids';
   static const String favoritesKey = 'favorite_photo_ids';
+  static const String hiddenKey = 'hidden_photo_ids';
 
   final Set<String> _trashIds = <String>{};
+  final Set<String> _hiddenIds = <String>{};
 
   @override
   void onInit() {
@@ -52,6 +55,11 @@ class GalleryController extends GetxController {
         ..addAll(savedIds.map((id) => id.toString()));
 
       final savedFavoriteIds = storage.read<List>(favoritesKey) ?? [];
+      _hiddenIds
+        ..clear()
+        ..addAll(
+          (storage.read<List>(hiddenKey) ?? []).map((id) => id.toString()),
+        );
       favoriteIds
         ..clear()
         ..addAll(savedFavoriteIds.map((id) => id.toString()));
@@ -64,6 +72,7 @@ class GalleryController extends GetxController {
         photos.clear();
         recentlyDeleted.clear();
         favorites.clear();
+        hiddenPhotos.clear();
         return;
       }
 
@@ -76,6 +85,7 @@ class GalleryController extends GetxController {
         photos.clear();
         recentlyDeleted.clear();
         favorites.clear();
+        hiddenPhotos.clear();
         return;
       }
 
@@ -101,7 +111,17 @@ class GalleryController extends GetxController {
 
       // Separate normal photos and Recently Deleted photos.
       photos.assignAll(
-        allPhotos.where((photo) => !_trashIds.contains(photo.id)),
+        allPhotos.where(
+          (photo) =>
+              !_trashIds.contains(photo.id) && !_hiddenIds.contains(photo.id),
+        ),
+      );
+
+      hiddenPhotos.assignAll(
+        allPhotos.where(
+          (photo) =>
+              _hiddenIds.contains(photo.id) && !_trashIds.contains(photo.id),
+        ),
       );
 
       recentlyDeleted.assignAll(
@@ -111,7 +131,9 @@ class GalleryController extends GetxController {
       favorites.assignAll(
         allPhotos.where(
           (photo) =>
-              favoriteIds.contains(photo.id) && !_trashIds.contains(photo.id),
+              favoriteIds.contains(photo.id) &&
+              !_trashIds.contains(photo.id) &&
+              !_hiddenIds.contains(photo.id),
         ),
       );
     } catch (e) {
@@ -160,12 +182,71 @@ class GalleryController extends GetxController {
 
   bool isFavorite(String photoId) => favoriteIds.contains(photoId);
 
+  Future<void> setHidden(AssetEntity photo, bool hidden) =>
+      setPhotosHidden([photo], hidden);
+
+  Future<void> setPhotosHidden(List<AssetEntity> items, bool hidden) async {
+    if (items.isEmpty) return;
+    final ids = items.map((item) => item.id).toSet();
+    final previousIds = Set<String>.of(_hiddenIds);
+    if (hidden) {
+      _hiddenIds.addAll(ids);
+    } else {
+      _hiddenIds.removeAll(ids);
+    }
+    try {
+      await storage.write(hiddenKey, _hiddenIds.toList());
+    } catch (_) {
+      _hiddenIds
+        ..clear()
+        ..addAll(previousIds);
+      rethrow;
+    }
+    photos.removeWhere((item) => ids.contains(item.id));
+    favorites.removeWhere((item) => ids.contains(item.id));
+    hiddenPhotos.removeWhere((item) => ids.contains(item.id));
+    if (hidden) {
+      hiddenPhotos.addAll(items);
+      hiddenPhotos.sort((a, b) => b.createDateTime.compareTo(a.createDateTime));
+    } else {
+      photos.addAll(items);
+      photos.sort((a, b) => b.createDateTime.compareTo(a.createDateTime));
+      favorites.addAll(items.where((item) => favoriteIds.contains(item.id)));
+      favorites.sort((a, b) => b.createDateTime.compareTo(a.createDateTime));
+    }
+  }
+
+  /// Removes all hidden IDs, including items currently unavailable to the app.
+  /// The caller must authenticate before invoking this operation.
+  Future<void> disableHiddenLock() async {
+    final previouslyHidden = hiddenPhotos.toList();
+    await storage.write(hiddenKey, <String>[]);
+    _hiddenIds.clear();
+    hiddenPhotos.clear();
+    final existingIds = photos.map((item) => item.id).toSet();
+    photos.addAll(
+      previouslyHidden.where((item) => !existingIds.contains(item.id)),
+    );
+    photos.sort((a, b) => b.createDateTime.compareTo(a.createDateTime));
+    final existingFavoriteIds = favorites.map((item) => item.id).toSet();
+    favorites.addAll(
+      previouslyHidden.where(
+        (item) =>
+            favoriteIds.contains(item.id) &&
+            !existingFavoriteIds.contains(item.id),
+      ),
+    );
+    favorites.sort((a, b) => b.createDateTime.compareTo(a.createDateTime));
+    await storage.remove('hidden_album_lock');
+  }
+
   Future<void> toggleFavorite(AssetEntity photo) async {
     if (favoriteIds.remove(photo.id)) {
       favorites.removeWhere((item) => item.id == photo.id);
     } else {
       favoriteIds.add(photo.id);
       if (!_trashIds.contains(photo.id) &&
+          !_hiddenIds.contains(photo.id) &&
           !favorites.any((item) => item.id == photo.id)) {
         favorites.add(photo);
         favorites.sort((a, b) => b.createDateTime.compareTo(a.createDateTime));
@@ -181,11 +262,19 @@ class GalleryController extends GetxController {
   ) async {
     if (selectedPhotos.isEmpty) return;
 
+    final previousIds = Set<String>.of(_trashIds);
     for (final photo in selectedPhotos) {
       _trashIds.add(photo.id);
     }
 
-    await _saveTrashIds();
+    try {
+      await _saveTrashIds();
+    } catch (_) {
+      _trashIds
+        ..clear()
+        ..addAll(previousIds);
+      rethrow;
+    }
 
     final selectedIds = selectedPhotos.map((photo) => photo.id).toSet();
 
@@ -251,6 +340,8 @@ class GalleryController extends GetxController {
 
       _trashIds.removeAll(deletedSet);
       favoriteIds.removeAll(deletedSet);
+      _hiddenIds.removeAll(deletedSet);
+      await storage.write(hiddenKey, _hiddenIds.toList());
       await _saveTrashIds();
       await _saveFavoriteIds();
 

@@ -8,11 +8,19 @@ import '../controllers/gallery_controller.dart';
 import '../widgets/favorites_tab_widget.dart';
 import '../widgets/photos_tab_widget.dart';
 import 'media_viewer_screen.dart';
+import 'hidden_album_screen.dart';
 import 'recently_deleted_screen.dart';
 import 'update_screen.dart';
 
 class GalleryScreen extends StatefulWidget {
-  const GalleryScreen({super.key});
+  const GalleryScreen({
+    super.key,
+    required this.themeMode,
+    required this.onThemeChanged,
+  });
+
+  final ThemeMode themeMode;
+  final ValueChanged<ThemeMode> onThemeChanged;
 
   @override
   State<GalleryScreen> createState() => _GalleryScreenState();
@@ -68,28 +76,6 @@ class _GalleryScreenState extends State<GalleryScreen> {
     Get.to(() => MediaViewerScreen(items: items, initialIndex: index));
   }
 
-  void _confirmDelete(AssetEntity photo) {
-    Get.dialog(
-      AlertDialog(
-        title: const Text('Move to Recently Deleted?'),
-        content: const Text(
-          'This item will be moved to Recently Deleted. '
-          'You can recover it later.',
-        ),
-        actions: [
-          TextButton(onPressed: () => Get.back(), child: const Text('Cancel')),
-          TextButton(
-            onPressed: () {
-              Get.back();
-              controller.deletePhoto(photo);
-            },
-            child: const Text('Move', style: TextStyle(color: Colors.red)),
-          ),
-        ],
-      ),
-    );
-  }
-
   Future<void> _manageMediaAccess() async {
     if (kIsWeb || defaultTargetPlatform != TargetPlatform.android) return;
     await controller.initialLoad;
@@ -126,25 +112,105 @@ class _GalleryScreenState extends State<GalleryScreen> {
     }
   }
 
+  Future<void> _showSettings() async {
+    await showModalBottomSheet<void>(
+      context: context,
+      showDragHandle: true,
+      builder: (sheetContext) => SafeArea(
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Padding(
+              padding: const EdgeInsets.fromLTRB(24, 0, 24, 8),
+              child: Text(
+                'Settings',
+                style: Theme.of(sheetContext).textTheme.titleLarge,
+              ),
+            ),
+            ListTile(
+              leading: const Icon(Icons.brightness_6_outlined),
+              title: const Text('Appearance'),
+              subtitle: Text(switch (widget.themeMode) {
+                ThemeMode.system => 'System default',
+                ThemeMode.light => 'Light',
+                ThemeMode.dark => 'Dark',
+              }),
+              onTap: () async {
+                final mode = await showDialog<ThemeMode>(
+                  context: sheetContext,
+                  builder: (dialogContext) => SimpleDialog(
+                    title: const Text('Appearance'),
+                    children: [
+                      for (final entry in const [
+                        (
+                          ThemeMode.system,
+                          'System default',
+                          Icons.brightness_auto_outlined,
+                        ),
+                        (ThemeMode.light, 'Light', Icons.light_mode_outlined),
+                        (ThemeMode.dark, 'Dark', Icons.dark_mode_outlined),
+                      ])
+                        SimpleDialogOption(
+                          onPressed: () =>
+                              Navigator.pop(dialogContext, entry.$1),
+                          child: Row(
+                            children: [
+                              Icon(entry.$3),
+                              const SizedBox(width: 12),
+                              Expanded(child: Text(entry.$2)),
+                              if (widget.themeMode == entry.$1)
+                                const Icon(Icons.check),
+                            ],
+                          ),
+                        ),
+                    ],
+                  ),
+                );
+                if (!mounted || !sheetContext.mounted || mode == null) return;
+                widget.onThemeChanged(mode);
+                Navigator.pop(sheetContext);
+              },
+            ),
+            ListTile(
+              leading: const Icon(Icons.lock_outline),
+              title: const Text('Hidden album'),
+              subtitle: const Text('Manage hidden items and lock'),
+              onTap: () {
+                Navigator.pop(sheetContext);
+                Get.to(() => const HiddenAlbumScreen());
+              },
+            ),
+            ListTile(
+              leading: const Icon(Icons.system_update),
+              title: const Text('App Update'),
+              onTap: () {
+                Navigator.pop(sheetContext);
+                Get.to(() => UpdateScreen());
+              },
+            ),
+            const SizedBox(height: 12),
+          ],
+        ),
+      ),
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     return DefaultTabController(
       length: 3,
       child: Scaffold(
-        backgroundColor: Colors.white,
         appBar: AppBar(
-          backgroundColor: Colors.white,
           title: const Text(
             'Gallery',
             style: TextStyle(fontWeight: FontWeight.bold),
           ),
           actions: [
             IconButton(
-              icon: const Icon(Icons.system_update),
-              tooltip: 'App Update',
-              onPressed: () {
-                Get.to(() => UpdateScreen());
-              },
+              icon: const Icon(Icons.settings_outlined),
+              tooltip: 'Settings',
+              onPressed: _showSettings,
             ),
           ],
         ),
@@ -156,7 +222,6 @@ class _GalleryScreenState extends State<GalleryScreen> {
               onScaleStart: _onScaleStart,
               onScaleUpdate: _onScaleUpdate,
               onOpenPhoto: _openPhoto,
-              onDeletePhoto: _confirmDelete,
             ),
             FavoritesTab(
               controller: controller,
@@ -166,12 +231,14 @@ class _GalleryScreenState extends State<GalleryScreen> {
           ],
         ),
         bottomNavigationBar: Material(
-          color: Colors.white,
+          color: Theme.of(context).colorScheme.surface,
           child: SafeArea(
             top: false,
             child: TabBar(
               labelColor: Theme.of(context).colorScheme.primary,
-              unselectedLabelColor: Colors.grey,
+              unselectedLabelColor: Theme.of(
+                context,
+              ).colorScheme.onSurfaceVariant,
               labelStyle: const TextStyle(fontSize: 12),
               tabs: const [
                 Tab(

@@ -15,6 +15,7 @@ import '../widgets/media_thumbnail_widget.dart';
 import '../widgets/zoomable_photo_page_widget.dart';
 import '../widgets/video_transport_widget.dart';
 import 'photo_edit_screen.dart';
+import 'hidden_unlock_screen.dart';
 
 class MediaViewerScreen extends StatefulWidget {
   const MediaViewerScreen({
@@ -22,11 +23,13 @@ class MediaViewerScreen extends StatefulWidget {
     required this.items,
     required this.initialIndex,
     this.isRecentlyDeleted = false,
+    this.isHidden = false,
   }) : assert(items.length > 0, 'At least one item is required.');
 
   final List<AssetEntity> items;
   final int initialIndex;
   final bool isRecentlyDeleted;
+  final bool isHidden;
 
   @override
   State<MediaViewerScreen> createState() => _MediaViewerScreenState();
@@ -45,6 +48,7 @@ class _MediaViewerScreenState extends State<MediaViewerScreen>
   bool _showControls = false;
   bool _statusBarVisible = true;
   bool _navBarVisible = true;
+  bool _closingHidden = false;
 
   double dragOffset = 0;
 
@@ -126,6 +130,38 @@ class _MediaViewerScreenState extends State<MediaViewerScreen>
   void didChangeAppLifecycleState(AppLifecycleState state) {
     if (state != AppLifecycleState.resumed) {
       videoController?.pause();
+    }
+    if (widget.isHidden &&
+        !_closingHidden &&
+        (state == AppLifecycleState.hidden ||
+            state == AppLifecycleState.paused) &&
+        mounted) {
+      _closingHidden = true;
+      Navigator.of(context).pop();
+    }
+  }
+
+  Future<void> toggleHidden() async {
+    if (deleting) return;
+    final item = currentItem;
+    setState(() => deleting = true);
+    try {
+      if (!widget.isHidden && !await unlockHiddenAlbum(context)) {
+        if (mounted) setState(() => deleting = false);
+        return;
+      }
+      if (!mounted) return;
+      await Get.find<GalleryController>().setHidden(item, !widget.isHidden);
+      if (mounted) await _removeCurrentItem();
+    } catch (_) {
+      if (mounted) {
+        setState(() => deleting = false);
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text('Could not update hidden album. Please try again.'),
+          ),
+        );
+      }
     }
   }
 
@@ -834,6 +870,17 @@ class _MediaViewerScreenState extends State<MediaViewerScreen>
   Widget _buildActionRow() {
     final isVideo = currentIsVideo;
 
+    if (widget.isHidden) {
+      return SizedBox(
+        width: double.infinity,
+        child: FilledButton.icon(
+          onPressed: deleting ? null : toggleHidden,
+          icon: const Icon(Icons.visibility_outlined),
+          label: const Text('Unhide'),
+        ),
+      );
+    }
+
     if (widget.isRecentlyDeleted) {
       return Row(
         children: [
@@ -878,6 +925,11 @@ class _MediaViewerScreenState extends State<MediaViewerScreen>
     return Row(
       children: [
         _buildFavoriteButton(),
+        IconButton(
+          onPressed: deleting ? null : toggleHidden,
+          tooltip: 'Hide',
+          icon: const Icon(Icons.visibility_off_outlined, color: Colors.white),
+        ),
         const SizedBox(width: 12),
         Expanded(
           child: OutlinedButton.icon(

@@ -102,9 +102,9 @@ class _RecentlyDeletedScreenState extends State<RecentlyDeletedScreen> {
           ),
           TextButton(
             onPressed: () => Get.back(result: true),
-            child: const Text(
+            child: Text(
               'Delete Permanently',
-              style: TextStyle(color: Colors.red),
+              style: TextStyle(color: Theme.of(context).colorScheme.error),
             ),
           ),
         ],
@@ -134,7 +134,10 @@ class _RecentlyDeletedScreenState extends State<RecentlyDeletedScreen> {
           ),
           TextButton(
             onPressed: () => Get.back(result: true),
-            child: const Text('Empty', style: TextStyle(color: Colors.red)),
+            child: Text(
+              'Empty',
+              style: TextStyle(color: Theme.of(context).colorScheme.error),
+            ),
           ),
         ],
       ),
@@ -152,20 +155,26 @@ class _RecentlyDeletedScreenState extends State<RecentlyDeletedScreen> {
       final photos = controller.recentlyDeleted.toList();
 
       if (photos.isEmpty) {
-        return const Center(
+        return Center(
           child: Column(
             mainAxisSize: MainAxisSize.min,
             children: [
-              Icon(Icons.delete_outline, size: 70, color: Colors.grey),
-              SizedBox(height: 12),
-              Text(
+              Icon(
+                Icons.delete_outline,
+                size: 70,
+                color: Theme.of(context).colorScheme.onSurfaceVariant,
+              ),
+              const SizedBox(height: 12),
+              const Text(
                 'Recently Deleted is Empty',
                 style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
               ),
-              SizedBox(height: 6),
+              const SizedBox(height: 6),
               Text(
                 'Deleted photos and videos will appear here.',
-                style: TextStyle(color: Colors.grey),
+                style: TextStyle(
+                  color: Theme.of(context).colorScheme.onSurfaceVariant,
+                ),
               ),
             ],
           ),
@@ -197,32 +206,43 @@ class _RecentlyDeletedScreenState extends State<RecentlyDeletedScreen> {
                   IconButton(
                     tooltip: 'Recover selected',
                     onPressed: recoverSelected,
-                    icon: const Icon(Icons.restore, color: Colors.green),
+                    icon: Icon(
+                      Icons.restore,
+                      color: Theme.of(context).colorScheme.primary,
+                    ),
                   ),
                   IconButton(
                     tooltip: 'Delete selected permanently',
                     onPressed: deleteSelected,
-                    icon: const Icon(Icons.delete_forever, color: Colors.red),
+                    icon: Icon(
+                      Icons.delete_forever,
+                      color: Theme.of(context).colorScheme.error,
+                    ),
                   ),
                 ] else ...[
                   TextButton(
                     onPressed: emptyTrash,
-                    child: const Text(
+                    child: Text(
                       'Empty',
-                      style: TextStyle(color: Colors.red),
+                      style: TextStyle(
+                        color: Theme.of(context).colorScheme.error,
+                      ),
                     ),
                   ),
                 ],
               ],
             ),
           ),
-          const Padding(
-            padding: EdgeInsets.symmetric(horizontal: 12),
+          Padding(
+            padding: const EdgeInsets.symmetric(horizontal: 12),
             child: Align(
               alignment: Alignment.centerLeft,
               child: Text(
                 'Long-press an item to select multiple items.',
-                style: TextStyle(color: Colors.grey, fontSize: 12),
+                style: TextStyle(
+                  color: Theme.of(context).colorScheme.onSurfaceVariant,
+                  fontSize: 12,
+                ),
               ),
             ),
           ),
@@ -261,7 +281,8 @@ class _RecentlyDeletedScreenState extends State<RecentlyDeletedScreen> {
                     child: Stack(
                       fit: StackFit.expand,
                       children: [
-                        MediaThumbnail(asset: photo),                        if (selected)
+                        MediaThumbnail(asset: photo),
+                        if (selected)
                           Container(
                             color: Colors.black.withAlpha(100),
                             child: const Align(
